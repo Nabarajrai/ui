@@ -1,84 +1,147 @@
-const form = document.querySelector("form");
-const input = document.querySelector("input");
-const result = document.querySelector(".items");
+document.addEventListener("DOMContentLoaded", function () {
+  class TodoApp {
+    constructor() {
+      this.todos = [];
+      this.form = document.querySelector("form");
+      this.input = document.querySelector("input");
+      this.itemsList = document.querySelector(".items");
+      this.item = null; // Not used for attachment anymore; we'll attach per item in render
 
-const todos = [];
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const value = input.value;
-  if (value === "") return;
-  const newTodo = {
-    id: Date.now(),
-    text: value,
-    edited: false,
-    completed: false,
-  };
-  todos.push(newTodo);
-  input.value = "";
-  renderTodos();
-});
-
-const deleteTodo = (id) => {
-  const index = todos.findIndex((todo) => todo.id === id);
-  if (index !== -1) {
-    todos.splice(index, 1);
-    renderTodos();
-  }
-};
-
-const handleChecked = (id) => {
-  const todo = todos.find((todo) => todo.id === id);
-  console.log(todo);
-  if (todo) {
-    todo.completed = !todo.completed;
-    renderTodos();
-  }
-};
-
-const editTodo = (id) => {
-  const todo = todos.find((todo) => todo.id === id);
-  if (todo) {
-    todo.edited = !todo.edited;
-    renderTodos();
-  }
-};
-
-const saveTodo = (id, newText) => {
-  const todo = todos.find((todo) => todo.id === id);
-  if (todo) {
-    todo.text = newText;
-    todo.edited = false;
-    renderTodos();
-  }
-};
-
-const renderTodos = () => {
-  let html = "";
-  console.log(todos);
-
-  todos.forEach((todo) => {
-    html += `
-    <li>
-        <span>
-      ${
-        todo.completed
-          ? `<input type="checkbox" checked onclick="handleChecked(${todo.id})">`
-          : `<input type="checkbox" onclick="handleChecked(${todo.id})">`
+      if (!this.itemsList) {
+        console.error("No .items container found in HTML.");
+        return;
       }
-        </span>
-        ${
-          todo.edited
-            ? `<input type="text" value="${todo.text}" /> <button class="save" onclick="saveTodo(${todo.id}, this.previousElementSibling.value)">Save</button>`
-            : `<span class=${todo.completed ? "checkbox" : ""}>${
-                todo.text
-              }</span>`
+
+      this.form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.addTodoList();
+      });
+
+      // No global click listener here—handled per item in render
+    }
+
+    // Define the click handler as a method for reuse
+    handleItemClick(e) {
+      const id = Number(e.target.parentElement.getAttribute("data-id"));
+      if (e.target.getAttribute("data-action") === "edit") {
+        this.editTodoList(id);
+      } else if (e.target.getAttribute("data-action") === "delete") {
+        this.deleteTodoList(id);
+      }
+    }
+
+    editTodoList(id) {
+      this.todos = this.todos.map((todo) => {
+        if (todo.id === id) {
+          return { ...todo, edited: !todo.edited }; // Toggle edit mode
         }
-        <span>
-          <button class="edit" onclick="editTodo(${todo.id})">edit</button>
-        <button class="delete" onclick="deleteTodo(${todo.id})">delete</button>
-        </span>
-    </li>
-    `;
-  });
-  result.innerHTML = html;
-};
+        return todo;
+      });
+      this.render();
+    }
+
+    deleteTodoList(id) {
+      this.todos = this.todos.filter((todo) => todo.id !== id);
+      this.render();
+    }
+
+    updateTodoList(id, newText) {
+      this.todos = this.todos.map((todo) => {
+        if (todo.id === id) {
+          return { ...todo, text: newText, edited: false };
+        }
+        return todo;
+      });
+      this.render();
+    }
+
+    toggleTodo(id) {
+      this.todos = this.todos.map((todo) => {
+        if (todo.id === id) {
+          return { ...todo, completed: !todo.completed };
+        }
+        return todo;
+      });
+      this.render();
+    }
+
+    addTodoList() {
+      const text = this.input.value.trim();
+      if (!text) return; // Prevent empty todos
+
+      const newTodo = {
+        id: Date.now(),
+        text: text,
+        completed: false,
+        edited: false,
+      };
+      this.todos.push(newTodo);
+      this.input.value = "";
+      this.render();
+    }
+
+    render() {
+      this.itemsList.innerHTML = "";
+      this.todos.forEach((todo) => {
+        const li = document.createElement("li");
+        li.classList.add("item");
+        li.setAttribute("data-id", todo.id);
+        li.innerHTML = `
+          <input type="checkbox" ${todo.completed ? "checked" : ""} />
+          ${
+            todo.edited
+              ? `<input type="text" class="edit-input" value="${todo.text}" autofocus />`
+              : `<span ${
+                  todo.completed ? 'style="text-decoration: line-through;"' : ""
+                }>${todo.text}</span>`
+          }
+          <button class="edit-btn" data-action="edit">Edit</button>
+          <button class="delete-btn" data-action="delete">Delete</button>
+        `;
+        this.itemsList.appendChild(li);
+
+        // Attach the click listener to this specific item (using the original logic)
+        li.addEventListener("click", (e) => this.handleItemClick(e));
+      });
+
+      // Re-attach checkbox change listeners to new items (optional, for toggling)
+      this.itemsList
+        .querySelectorAll("input[type='checkbox']")
+        .forEach((checkbox) => {
+          checkbox.addEventListener("change", (e) => {
+            const item = e.target.closest(".item");
+            if (!item) return;
+            const id = Number(item.getAttribute("data-id"));
+            this.toggleTodo(id);
+          });
+        });
+
+      // Re-attach edit input handlers (focusout, keydown) to new inputs (optional)
+      this.itemsList.querySelectorAll(".edit-input").forEach((input) => {
+        input.addEventListener("focusout", (e) => {
+          const item = e.target.closest(".item");
+          if (!item) return;
+          const id = Number(item.getAttribute("data-id"));
+          const newText = e.target.value.trim();
+          if (newText) {
+            this.updateTodoList(id, newText);
+          } else {
+            this.editTodoList(id); // Revert
+          }
+        });
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.target.blur(); // Save
+          } else if (e.key === "Escape") {
+            const item = e.target.closest(".item");
+            if (item) {
+              const id = Number(item.getAttribute("data-id"));
+              this.editTodoList(id); // Revert
+            }
+          }
+        });
+      });
+    }
+  }
+  new TodoApp();
+});
