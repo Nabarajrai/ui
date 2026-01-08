@@ -1,8 +1,7 @@
 const buttons = document.querySelectorAll(".btn");
-
+const display = document.querySelector(".display");
 buttons.forEach((button) => {
   button.addEventListener("click", () => {
-    const display = document.querySelector(".display");
     const value = button.value;
     if (value === "=") {
       try {
